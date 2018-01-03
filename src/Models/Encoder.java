@@ -1,13 +1,11 @@
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.DataBufferByte;
-import java.awt.image.WritableRaster;
-import java.io.File;
-import java.io.IOException;
+package Models;
 
-class Image
+public class Encoder
 {
+    private byte[] bytes;
+    private byte[] messageBytes;
+    private String message;
+    
     private final byte[] bit = {
             (byte) 0b0000_0001,
             (byte) 0b0000_0010,
@@ -26,89 +24,22 @@ class Image
             (byte) 0b1101_1111,
             (byte) 0b1011_1111,
             (byte) 0b0111_1111};
-    private byte[] bytes;
-    private int width;
-    private int height;
-    private ColorModel colorModel;
-    private String message;
     
-    Image()
+    public Encoder()
     {
-        width = 0;
-        height = 0;
-        colorModel = null;
         bytes = null;
+        messageBytes = null;
         message = null;
     }
     
-    Image(String path)
+    public Encoder(byte[] bytes, String message)
     {
-        setImage(path);
-        message = null;
+        messageBytes = null;
+        setBytes(bytes);
+        setMessage(message);
     }
     
-    void setImage(String path)
-    {
-        try
-        {
-            BufferedImage bufferedImage = ImageIO.read(new File(path));
-            width = bufferedImage.getWidth();
-            height = bufferedImage.getHeight();
-            colorModel = bufferedImage.getColorModel();
-            bytes = ((DataBufferByte) bufferedImage.getRaster().getDataBuffer()).getData();
-            
-            for (int i = 0; i < bytes.length - 2; i += 3)
-            {
-                byte tmp = bytes[i];
-                bytes[i] = bytes[i + 2];
-                bytes[i + 2] = tmp;
-            }
-        } catch (IOException e)
-        {
-            System.out.println(e.getMessage());
-        }
-    }
-    
-    void printImage()
-    {
-        printImage("default.jpg");
-    }
-    
-    void printImage(String path)
-    {
-        if (bytes == null)
-        {
-            System.out.println("Please specify a file first");
-            return;
-        }
-        
-        String[] extension;
-        if (path.contains("."))
-        {
-            extension = path.split("\\.");
-        }
-        else
-        {
-            System.out.println("Please specify a file extension");
-            return;
-        }
-        
-        try
-        {
-            DataBufferByte buffer = new DataBufferByte(bytes, bytes.length);
-            
-            WritableRaster raster = WritableRaster.createInterleavedRaster(buffer, width, height, 3 * width, 3, new int[]{0, 1, 2}, null);
-            //ColorModel cm = new ComponentColorModel(ColorModel.getRGBdefault().getColorSpace(), false, true, Transparency.OPAQUE, DataBuffer.TYPE_BYTE);
-            BufferedImage image = new BufferedImage(colorModel, raster, true, null);
-            
-            ImageIO.write(image, extension[extension.length - 1], new File(path));
-        } catch (IOException e)
-        {
-            System.out.println(e.getMessage());
-        }
-    }
-    
-    void setMessage(String message)
+    public void setMessage(String message)
     {
         if (message != null)
         {
@@ -120,7 +51,34 @@ class Image
         }
     }
     
-    void embedMessage(int nrOfBitsToUse)
+    public String getMessage()
+    {
+        return message;
+    }
+    
+    public void setBytes(byte[] bytes)
+    {
+        if (bytes != null)
+        {
+            this.bytes = bytes;
+        }
+        else
+        {
+            System.out.println("Not a valid array of bytes");
+        }
+    }
+    
+    public byte[] getBytes()
+    {
+        return bytes;
+    }
+    
+    public byte[] getMessageBytes()
+    {
+        return messageBytes;
+    }
+    
+    public void embedMessage(int nrOfBitsToUse)
     {
         if (bytes == null)
         {
@@ -140,9 +98,9 @@ class Image
             return;
         }
         
-        message += "5x0";
+        String tmpmessage = "(encoded)" + String.format("%5s", message.length()).replace(' ', '0') + message;
         
-        byte[] messageBytes = message.getBytes();
+        byte[] messageBytes = tmpmessage.getBytes();
         
         if (bytes.length * nrOfBitsToUse < messageBytes.length * 8)
         {
@@ -186,24 +144,30 @@ class Image
         }
     }
     
-    String recoverMessage(int nrOfBitsUsed)
+    public void recoverMessage(int nrOfBitsUsed)
     {
         if (bytes == null)
         {
             System.out.println("Please specify a file first");
-            return null;
+            return;
         }
         
         if (nrOfBitsUsed < 1 || nrOfBitsUsed > 8)
         {
             System.out.println("Number of bits used must be between 1 and 8");
-            return null;
+            return;
+        }
+        
+        int len = checkForMessage(nrOfBitsUsed);
+        if (len < 0)
+        {
+            System.out.println("There is no message");
         }
         
         int currentBit;
         int remainingBits = 7;
         int index = 0;
-        byte[] messageBytes = new byte[nrOfBitsUsed * bytes.length / 8];
+        byte[] messageBytesRead = new byte[len + "(encoded)".length() + 5];
         
         next:
         for (byte i : bytes)
@@ -213,11 +177,59 @@ class Image
             {
                 if (remainingBits == -1)
                 {
-                    if (index >= 3)
+                    if (index == len + "(encoded)".length() + 4)
                     {
-                        if (messageBytes[index - 2] == (byte) '5' && messageBytes[index - 1] == (byte) 'x' && messageBytes[index] == (byte) '0')
+                        break next;
+                    }
+                    
+                    index++;
+                    remainingBits = 7;
+                }
+                
+                if ((i & bit[currentBit]) == 0)
+                {
+                    messageBytesRead[index] = (byte) (messageBytesRead[index] & nbit[remainingBits]);
+                }
+                else
+                {
+                    messageBytesRead[index] = (byte) (messageBytesRead[index] | bit[remainingBits]);
+                }
+                
+                currentBit--;
+                remainingBits--;
+            }
+        }
+        
+        messageBytes = new byte[len];
+        System.arraycopy(messageBytesRead, "(encoded)".length() + 5, messageBytes, 0, len);
+        
+        message = new String(messageBytes);
+    }
+    
+    public int checkForMessage(int nrOfBitsUsed)
+    {
+        int currentBit;
+        int remainingBits = 7;
+        int index = 0;
+        byte[] messageBytes = new byte["(encoded)".length() + 5];
+        
+        for (byte i : bytes)
+        {
+            currentBit = nrOfBitsUsed - 1;
+            while (currentBit >= 0)
+            {
+                if (remainingBits == -1)
+                {
+                    if (index == "(encoded)".length() + 4)
+                    {
+                        String msg = new String(messageBytes);
+                        if (msg.contains("(encoded)"))
                         {
-                            break next;
+                            return Integer.parseInt(msg.substring("(encoded)".length()));
+                        }
+                        else
+                        {
+                            return -1;
                         }
                     }
                     
@@ -238,12 +250,6 @@ class Image
                 remainingBits--;
             }
         }
-        
-        byte[] messageBytesCopy = new byte[index - 2];
-        System.arraycopy(messageBytes, 0, messageBytesCopy, 0, index - 2);
-        
-        message = new String(messageBytesCopy);
-        
-        return message;
+        return -1;
     }
 }
