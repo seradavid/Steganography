@@ -1,5 +1,7 @@
 package Views;
 
+import Controllers.ImageController;
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -15,26 +17,25 @@ public class ImageView extends JPanel
     private JButton chooseFileButton;
     private JTextField textFieldFile;
     private JLabel labelImage;
-    private JTextField textFieldMessage;
-    private JButton chooseFileButtonMessage;
-    private JRadioButton textRadioButton;
-    private JRadioButton fileRadioButton;
     private JPanel panelImage;
     private JPanel panelMessage;
-    private JPanel panelFileOrText;
     private JTextArea textAreaMessage;
+    private JButton embedButton;
+    private JButton recoverButton;
+    private JRadioButton encryptRadioButton;
+    private JTextField textFieldPassword;
     private ImageIcon image;
+    private ImageController ic;
     
     public ImageView()
     {
+        ic = new ImageController();
+        
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setSize(1000, 1000);
         frame.setContentPane(panelMain);
         frame.setVisible(true);
         image = new ImageIcon();
-        ButtonGroup buttonGroup = new ButtonGroup();
-        buttonGroup.add(textRadioButton);
-        buttonGroup.add(fileRadioButton);
         
         chooseFileButton.addActionListener(e -> {
             JFileChooser fileChooser = new JFileChooser();
@@ -71,16 +72,58 @@ public class ImageView extends JPanel
             
             void UpdateFile()
             {
+                if (textFieldFile.getText().equals(""))
+                {
+                    return;
+                }
                 try
                 {
                     image.setImage(ImageIO.read(new File(textFieldFile.getText())));
                     labelImage.setIcon(image);
+                    ic.setImage(textFieldFile.getText());
                 } catch (IOException ex)
                 {
-                    return;
+                    infoBox(ex.getMessage(), "An exception was encountered");
+                } finally
+                {
+                    textAreaMessage.setText("");
+                    panelImage.revalidate();
+                    panelMessage.revalidate();
                 }
+            }
+        });
+        
+        embedButton.addActionListener(e -> {
+            try
+            {
+                if (ic.encode(textAreaMessage.getText(), 2, encryptRadioButton.isSelected(), textFieldPassword.getText()))
+                {
+                    infoBox("Successfully encoded the message", "Success");
+                }
+                else
+                {
+                    infoBox("Could not encode the message", "Failure");
+                }
+            } catch (IOException ex)
+            {
+                infoBox(ex.getMessage(), "An exception was encountered");
+            }
+        });
+        
+        recoverButton.addActionListener(e -> {
+            if(ic.decode(2, encryptRadioButton.isSelected(), textFieldPassword.getText()))
+            {
+                textAreaMessage.setText(ic.getMessage());
+            }
+            else
+            {
+                infoBox("Could not decode the message", "Failure");
             }
         });
     }
     
+    private static void infoBox(String message, String titleBar)
+    {
+        JOptionPane.showMessageDialog(null, message, titleBar, JOptionPane.INFORMATION_MESSAGE);
+    }
 }

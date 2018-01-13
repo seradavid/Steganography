@@ -39,15 +39,17 @@ public class Encoder
         setMessage(message);
     }
     
-    public void setMessage(String message)
+    public void setMessage(String message) throws NullPointerException
     {
         if (message != null)
         {
             this.message = message;
+            messageBytes = message.getBytes();
         }
         else
         {
             System.out.println("Message can't be null");
+            throw new NullPointerException();
         }
     }
     
@@ -56,7 +58,7 @@ public class Encoder
         return message;
     }
     
-    public void setBytes(byte[] bytes)
+    public void setBytes(byte[] bytes) throws NullPointerException
     {
         if (bytes != null)
         {
@@ -65,6 +67,7 @@ public class Encoder
         else
         {
             System.out.println("Not a valid array of bytes");
+            throw new NullPointerException();
         }
     }
     
@@ -73,39 +76,53 @@ public class Encoder
         return bytes;
     }
     
+    public void setMessageBytes(byte[] messageBytes) throws NullPointerException
+    {
+        if(messageBytes != null)
+        {
+            this.messageBytes = messageBytes;
+            message = new String(messageBytes);
+        }
+        else
+        {
+            System.out.println("Bytes cant be null");
+            throw new NullPointerException();
+        }
+    }
+    
     public byte[] getMessageBytes()
     {
         return messageBytes;
     }
     
-    public void embedMessage(int nrOfBitsToUse)
+    public boolean embedMessage(int nrOfBitsToUse)
     {
         if (bytes == null)
         {
             System.out.println("Please specify a file first");
-            return;
+            return false;
         }
         
-        if (message == null)
+        if (messageBytes == null)
         {
             System.out.println("Please set the message to be embedded");
-            return;
+            return false;
         }
         
         if (nrOfBitsToUse < 1 || nrOfBitsToUse > 8)
         {
             System.out.println("Number of bits to use must be between 1 and 8");
-            return;
+            return false;
         }
         
         String tmpmessage = "(encoded)" + String.format("%5s", message.length()).replace(' ', '0') + message;
         
-        byte[] messageBytes = tmpmessage.getBytes();
+        byte[] messageBytestmp = tmpmessage.getBytes();
         
-        if (bytes.length * nrOfBitsToUse < messageBytes.length * 8)
+        if (bytes.length * nrOfBitsToUse < messageBytestmp.length * 8)
         {
             System.out.println("Message too long. Increase the number of bits or shorten the message.");
-            return;
+            return false;
         }
         
         int currentBit = nrOfBitsToUse - 1;
@@ -113,7 +130,7 @@ public class Encoder
         int index = 0;
         
         next:
-        for (byte i : messageBytes)
+        for (byte i : messageBytestmp)
         {
             remainingBits = 7;
             while (remainingBits >= 0)
@@ -142,26 +159,29 @@ public class Encoder
                 currentBit = nrOfBitsToUse - 1;
             }
         }
+        
+        return true;
     }
     
-    public void recoverMessage(int nrOfBitsUsed)
+    public boolean recoverMessage(int nrOfBitsUsed)
     {
         if (bytes == null)
         {
             System.out.println("Please specify a file first");
-            return;
+            return false;
         }
         
         if (nrOfBitsUsed < 1 || nrOfBitsUsed > 8)
         {
             System.out.println("Number of bits used must be between 1 and 8");
-            return;
+            return false;
         }
         
         int len = checkForMessage(nrOfBitsUsed);
         if (len < 0)
         {
-            System.out.println("There is no message");
+            message = null;
+            return true;
         }
         
         int currentBit;
@@ -204,6 +224,8 @@ public class Encoder
         System.arraycopy(messageBytesRead, "(encoded)".length() + 5, messageBytes, 0, len);
         
         message = new String(messageBytes);
+        
+        return true;
     }
     
     public int checkForMessage(int nrOfBitsUsed)
